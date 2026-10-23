@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Slip</string>
+    <key>CFBundleDisplayName</key>
+    <string>Slip</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.psantalla.slip</string>
+    <key>CFBundleExecutable</key>
+    <string>slip</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>ATSApplicationFontsPath</key>
+    <string>Fonts</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Slip links your two Macs on the local network to share clipboard, files and keyboard/mouse.</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_slip._tcp</string>
+    </array>
+</dict>
+</plist>
