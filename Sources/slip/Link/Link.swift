@@ -22,13 +22,16 @@ final class Link: @unchecked Sendable {
     private static let deadAfter = 12.0
     private static let dialTimeout = 5.0
     private static let reconnectDelay = 2.0
+    private static let maxAttempts = 3
+    private static let connectTimeout = 8.0
 
     var onStatus: ((LinkStatus) -> Void)?
     var onFrame: ((Header, Data) -> Void)?
 
     private let q = DispatchQueue(label: "slip.link")
     private let device = Settings.deviceName
-    private var code: String
+    private var hostCode: String   // this Mac's own code (listener PSK)
+    private var joinCode = ""      // remote host's code to dial
     private var isJoin = false
     private var epoch = 0
 
@@ -52,26 +55,31 @@ final class Link: @unchecked Sendable {
     private var dialingPeerId: String?
     private var lastDialAt: DispatchTime?
     private var connectDeadline: DispatchWorkItem?
-    private static let maxAttempts = 3
-    private static let connectTimeout = 8.0
 
-    init(code: String) { self.code = code }
+    init(hostCode: String) { self.hostCode = hostCode }
 
-    func setCode(_ c: String) { q.async { self.code = c } }
-
-    func startHost() {
+    func setHostCode(_ c: String) {   // own code; rebuild listener to serve the new PSK
         q.async { [weak self] in
-            guard let self else { return }
-            self.teardown()
-            self.isJoin = false
-            do {
-                let l = try NWListener(using: self.params())
-                l.service = NWListener.Service(name: self.device, type: Link.serviceType)
-                l.newConnectionHandler = { [weak self] c in self?.begin(c, dial: false) }
-                l.start(queue: self.q)
-                self.listener = l
-            } catch { self.emit(.disconnected) }
+            guard let self, self.hostCode != c else { return }
+            self.hostCode = c
+            if !self.isJoin { self.hostListen() }
         }
+    }
+
+    func setJoinCode(_ c: String) { q.async { [weak self] in self?.joinCode = c } }
+
+    func startHost() { q.async { [weak self] in self?.hostListen() } }
+
+    private func hostListen() {   // on q; listener PSK derives from hostCode
+        teardown()
+        isJoin = false
+        do {
+            let l = try NWListener(using: params(for: hostCode))
+            l.service = NWListener.Service(name: device, type: Link.serviceType)
+            l.newConnectionHandler = { [weak self] c in self?.begin(c, dial: false) }
+            l.start(queue: q)
+            listener = l
+        } catch { emit(.disconnected) }
     }
 
     func startJoin() {
@@ -133,7 +141,7 @@ final class Link: @unchecked Sendable {
         lastDialAt = .now()
         connectDeadline?.cancel(); connectDeadline = nil   // a dial is now in flight
         emit(.connecting)
-        begin(NWConnection(to: peer.endpoint, using: params()), dial: true)
+        begin(NWConnection(to: peer.endpoint, using: params(for: joinCode)), dial: true)
     }
 
     private func scheduleDial() {
@@ -346,10 +354,10 @@ final class Link: @unchecked Sendable {
         emit(.disconnected)
     }
 
-    private var cachedKey: (code: String, key: Data)?
-    private func params() -> NWParameters {
-        if cachedKey?.code != code { cachedKey = (code, Wire.deriveKey(code)) }   // PBKDF2 is expensive
-        return makePSKParameters(key: cachedKey!.key)
+    private var keyCache: (code: String, key: Data)?
+    private func params(for code: String) -> NWParameters {
+        if keyCache?.code != code { keyCache = (code, Wire.deriveKey(code)) }   // PBKDF2 is expensive
+        return makePSKParameters(key: keyCache!.key)
     }
 }
 
@@ -364,7 +372,10 @@ func makePSKParameters(key: Data) -> NWParameters {
             sec_protocol_options_add_pre_shared_key(sec, k as __DispatchData, i as __DispatchData)
         }
     }
-    if let cs = tls_ciphersuite_t(rawValue: 0x00A8) { sec_protocol_options_append_tls_ciphersuite(sec, cs) }
+    // ECDHE-PSK ciphers -> forward secrecy
+    for cs in [0xD001, 0xCCAC, 0xC037] {   // ECDHE_PSK AES-GCM / ChaCha / AES-CBC
+        if let c = tls_ciphersuite_t(rawValue: UInt16(cs)) { sec_protocol_options_append_tls_ciphersuite(sec, c) }
+    }
     sec_protocol_options_set_min_tls_protocol_version(sec, .TLSv12)
     sec_protocol_options_set_max_tls_protocol_version(sec, .TLSv12)
     return NWParameters(tls: tls)

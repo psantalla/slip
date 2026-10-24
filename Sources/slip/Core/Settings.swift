@@ -2,6 +2,7 @@ import Foundation
 
 enum Settings {
     private static let d = UserDefaults.standard
+    private static var home: URL { FileManager.default.homeDirectoryForCurrentUser }
 
     static var code: String {
         get {
@@ -65,6 +66,21 @@ enum Settings {
     }
 
     static var deviceName: String { Host.current().localizedName ?? "Mac" }
+
+    // logging, config.json: log (bool), logLevel (debug|info|warn|error), logMaxKB (int), logDir (path)
+    static var logEnabled: Bool {
+        if let v = config()["log"] as? Bool { return v }          // explicit wins
+        return FileManager.default.fileExists(atPath: home.appendingPathComponent("LFL").path)   // default: on if sync folder present
+    }
+    static var logLevel: String { config()["logLevel"] as? String ?? "info" }
+    static var logMaxKB: Int { max(16, config()["logMaxKB"] as? Int ?? 256) }
+    static var logDir: URL {
+        if let p = config()["logDir"] as? String, !p.isEmpty {
+            return URL(fileURLWithPath: (p as NSString).expandingTildeInPath, isDirectory: true)
+        }
+        let lfl = home.appendingPathComponent("LFL", isDirectory: true)   // sync folder if present, else standard location
+        return FileManager.default.fileExists(atPath: lfl.path) ? lfl : home.appendingPathComponent("Library/Logs/Slip", isDirectory: true)
+    }
 
     static func newCode() -> String {
         let alphabet = Array("0123456789ABCDEFGHJKMNPQRSTVWXYZ")

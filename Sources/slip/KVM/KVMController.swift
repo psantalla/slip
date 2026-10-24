@@ -2,7 +2,6 @@ import CoreGraphics
 
 final class KVMController {
     var onEvent: ((InputEvent) -> Void)?
-    var onRemoteChange: ((Bool) -> Void)?
 
     private var side: Side
     private var align: Double
@@ -74,7 +73,8 @@ final class KVMController {
     func handback(ratio: Double) {
         guard remote else { return }
         let r = min(1, max(0, ratio + align))
-        leaveRemote(warpTo: Geometry.reentryPoint(side: side, ratio: r, Geometry.desktopBounds()), tellReceiver: false)
+        let p = Geometry.clamp(Geometry.reentryPoint(side: side, ratio: r, Geometry.desktopBounds()), to: Geometry.activeDisplayRects())
+        leaveRemote(warpTo: p, tellReceiver: false)   // keep reentry on a real display (offset multi-monitor dead zones)
     }
 
     private func handle(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -139,23 +139,23 @@ final class KVMController {
     private func enterRemote(ratio: Double, flags: UInt64) {
         remote = true
         residualX = 0; residualY = 0
-        CGAssociateMouseAndMouseCursorPosition(0)   // detach hw mouse from the local cursor
-        CGDisplayHideCursor(CGMainDisplayID())
+        let main = Geometry.mainBounds()
+        CGWarpMouseCursorPosition(CGPoint(x: main.midX, y: main.midY))   // cursor onto the display we hide; else it strands on a 2nd monitor (deskflow #10225)
+        let hideErr = CursorHide.hide()             // hide BEFORE detach so it registers (ends with associate(true))
+        CGAssociateMouseAndMouseCursorPosition(0)   // then detach; raw deltas, so the warp doesn't pollute motion
         let r = min(1, max(0, ratio - align))
-        Log.line("ctrl cross-out side=\(side.opposite) ratio=\(String(format: "%.2f", r))")
+        Log.line("ctrl cross-out side=\(side.opposite) ratio=\(String(format: "%.2f", r)) hide=\(hideErr.rawValue)")
         onEvent?(.enter(side: side.opposite, ratio: r))
         onEvent?(.flags(flags))   // carry held modifiers across
-        onRemoteChange?(true)
     }
 
     private func leaveRemote(warpTo: CGPoint?, tellReceiver: Bool) {
         remote = false
         crossArmed = false   // landed near the edge; require moving away before re-crossing
-        CGAssociateMouseAndMouseCursorPosition(1)
+        CGAssociateMouseAndMouseCursorPosition(1)   // reattach FIRST
         if let p = warpTo { CGWarpMouseCursorPosition(p) }
-        CGDisplayShowCursor(CGMainDisplayID())
+        CursorHide.show()
         if tellReceiver { onEvent?(.leave) }
-        onRemoteChange?(false)
     }
 
     private func bit(_ t: CGEventType) -> CGEventMask { CGEventMask(1) << t.rawValue }

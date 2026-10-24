@@ -1,26 +1,63 @@
 import Foundation
 
-// Diagnostic log to ~/LFL/slip-<mac>.log (only if ~/LFL exists). Syncs across Macs for debugging.
+enum LogLevel: Int, Comparable {
+    case debug, info, warn, error
+    init(_ s: String) {
+        switch s.lowercased() {
+        case "debug": self = .debug
+        case "warn", "warning": self = .warn
+        case "error": self = .error
+        default: self = .info
+        }
+    }
+    var tag: String { ["DBG", "INF", "WRN", "ERR"][rawValue] }
+    static func < (a: Self, b: Self) -> Bool { a.rawValue < b.rawValue }
+}
+
+// Diagnostic log to <logDir>/slip-<mac>.log. Config via config.json (see Settings).
+// self-trimming: capped, keeps newest
 enum Log {
     private static let queue = DispatchQueue(label: "slip.log")
+    private static let dateFmt = ISO8601DateFormatter()
+    private static let threshold = LogLevel(Settings.logLevel)
+    private static let maxBytes = Settings.logMaxKB * 1024
+    private static let keepBytes = maxBytes / 4
     private static let url: URL? = {
-        let lfl = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("LFL", isDirectory: true)
-        guard FileManager.default.fileExists(atPath: lfl.path) else { return nil }
+        guard Settings.logEnabled else { return nil }
+        let dir = Settings.logDir
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let name = (Host.current().localizedName ?? "mac").replacingOccurrences(of: " ", with: "_")
-        return lfl.appendingPathComponent("slip-\(name).log")
+        return dir.appendingPathComponent("slip-\(name).log")
     }()
 
-    static func line(_ s: String) {
-        guard let url else { return }
+    static func debug(_ s: @autoclosure () -> String) { emit(.debug, s) }
+    static func line(_ s: @autoclosure () -> String) { emit(.info, s) }
+    static func info(_ s: @autoclosure () -> String) { emit(.info, s) }
+    static func warn(_ s: @autoclosure () -> String) { emit(.warn, s) }
+    static func error(_ s: @autoclosure () -> String) { emit(.error, s) }
+
+    private static func emit(_ level: LogLevel, _ s: () -> String) {
+        guard let url, level >= threshold else { return }
+        let msg = s()
         queue.async {
-            let t = ISO8601DateFormatter().string(from: Date())
-            let msg = "\(t) \(s)\n"
-            guard let data = msg.data(using: .utf8) else { return }
-            if let fh = try? FileHandle(forWritingTo: url) {
-                fh.seekToEndOfFile(); fh.write(data); try? fh.close()
+            let t = dateFmt.string(from: Date())
+            guard let data = "\(t) \(level.tag) \(msg)\n".data(using: .utf8) else { return }
+            guard let fh = try? FileHandle(forWritingTo: url) else { try? data.write(to: url); return }
+            if fh.seekToEndOfFile() > maxBytes {
+                try? fh.close()
+                trimTail(url)
+                if let fh2 = try? FileHandle(forWritingTo: url) { fh2.seekToEndOfFile(); fh2.write(data); try? fh2.close() }
             } else {
-                try? msg.write(to: url, atomically: true, encoding: .utf8)
+                fh.write(data); try? fh.close()
             }
         }
+    }
+
+    // keep the tail (newest); drop a leading partial line so it starts clean
+    private static func trimTail(_ url: URL) {
+        guard let all = try? Data(contentsOf: url), all.count > keepBytes else { return }
+        var tail = Data(all.suffix(keepBytes))
+        if let nl = tail.firstIndex(of: 0x0A), nl + 1 < tail.count { tail = Data(tail[(nl + 1)...]) }
+        try? tail.write(to: url, options: .atomic)
     }
 }

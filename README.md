@@ -1,20 +1,32 @@
 # Slip
 
-Mac-to-Mac clipboard, files and keyboard/mouse over the LAN. Native Swift menu-bar app, Apple Silicon. No account, no cloud.
+Native Swift macOS menu-bar app, Apple Silicon only. Syncs clipboard, files and keyboard/mouse between two Macs over the LAN. No account, no cloud.
 
 ## Does
 
-- Clipboard text / images, both ways.
+- Clipboard text and images, both ways.
 - Files, land in `~/Downloads/Slip`.
-- KVM: cursor crosses the screen edge, keyboard follows.
-- Clipboard / Files / KVM each toggleable, off-switch for KVM by default.
+- KVM (opt-in): cursor crosses the screen edge onto the other Mac, keyboard follows.
+- Clipboard / Files / KVM each toggleable. KVM off by default.
 
-## Run
+## Build and run
 
-`./build.sh`, open `Slip.app` on both Macs, allow Local Network. Host shows a code; Join types it, presses Connect. Saved, reconnects by itself.
+- `./build.sh` (release build, assembles and signs `Slip.app`).
+- Open `Slip.app` on both Macs, allow Local Network when prompted.
+- Host shows a code. Join types it and presses Connect.
+- Pairing is saved; it reconnects by itself.
 
-## Test
+Apple Silicon only.
 
-Copy on one, paste on the other. For KVM: turn on Share, drag the Join tile to its side, cross the cursor onto it.
+## Security
 
-Detail and security: DESIGN.md.
+Paired over TLS 1.2 ECDHE-PSK (forward secrecy) from a one-time code. LAN only, same owner both ends. Detail: [DESIGN.md](DESIGN.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+## Contributing
+
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [SECURITY.md](SECURITY.md)

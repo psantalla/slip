@@ -15,7 +15,7 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>0.1.1</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
@@ -24,8 +24,6 @@
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
-    <key>ATSApplicationFontsPath</key>
-    <string>Fonts</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Slip links your two Macs on the local network to share clipboard, files and keyboard/mouse.</string>
     <key>NSBonjourServices</key>

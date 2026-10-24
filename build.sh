@@ -11,7 +11,6 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/slip"
 cp Info.plist "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(date +%Y%m%d.%H%M)" "$APP/Contents/Info.plist"
-cp -R Resources/Fonts "$APP/Contents/Resources/Fonts"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 # stable self-signed identity keeps the TCC (Accessibility/Input Monitoring) grant across rebuilds;
@@ -25,7 +24,13 @@ if security find-identity -p codesigning | grep -q "$ID"; then
   fi
 else
   echo "warning: '$ID' not in keychain; ad-hoc signing, TCC grants reset each build" >&2
-  codesign --force --sign - "$APP"
+  codesign --force --deep --sign - "$APP"
+fi
+
+# catch a half-written signature (e.g. sealed-but-missing .cstemp) before it ships
+if ! codesign --verify --strict --verbose=2 "$APP"; then
+  echo "error: signature invalid after signing; aborting." >&2
+  exit 1
 fi
 
 echo "built $APP"

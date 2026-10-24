@@ -10,7 +10,6 @@ final class Core: ObservableObject {
     @Published var clipOn = Settings.clipOn
     @Published var filesOn = Settings.filesOn
     @Published var kvmOn = Settings.kvmOn
-    @Published var kvmActive = false
     @Published var kvmSide = Settings.otherSide
     @Published var kvmAlign = Settings.kvmAlign
 
@@ -26,7 +25,7 @@ final class Core: ObservableObject {
         let c = Settings.code
         code = c
         role = Role(rawValue: Settings.role) ?? .host
-        link = Link(code: c)
+        link = Link(hostCode: c)
 
         clip.onLocal = { [weak self] h, d in
             guard let self, self.isConnected, self.clipOn, d.count <= Wire.maxPayload else { return }
@@ -37,7 +36,6 @@ final class Core: ObservableObject {
         kvm = KVM(send: { [weak self] e in
             self?.link.send(Header(kind: Kind.input, name: nil, device: nil), e.encode())
         })
-        kvm.onActiveChange = { [weak self] a in self?.kvmActive = a }
         kvm.setRole(role)
 
         NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification,
@@ -103,15 +101,14 @@ final class Core: ObservableObject {
         guard Wire.normalizeCode(joinCode).count >= 8 else { return }
         Settings.joinCode = joinCode
         status = .connecting   // instant feedback, link refines to connected/failed
-        link.setCode(joinCode)
+        link.setJoinCode(joinCode)
         link.connect()
     }
 
     func regenerateCode() {
         let c = Settings.newCode()
         Settings.code = c; code = c
-        link.setCode(c)
-        apply(role)
+        link.setHostCode(c)
     }
 
     func sendFiles(_ urls: [URL]) {

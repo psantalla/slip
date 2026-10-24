@@ -12,7 +12,15 @@ final class KVMReceiver {
     private var keysDown = Set<Int>()
     private var entrySide: Side = .left
     private var armed = false
+    private var enteredAt = DispatchTime.now()
+    private var pushSince: DispatchTime?
+    private var lastPush: DispatchTime?
+    private var pushTravel: CGFloat = 0
     private static let armDistance: CGFloat = 24
+    private static let enterCooldown = DispatchTimeInterval.milliseconds(400)   // no handback right after crossing in
+    private static let handbackHold  = DispatchTimeInterval.milliseconds(250)   // sustain the push this long
+    private static let pushGap       = DispatchTimeInterval.milliseconds(90)    // a gap in pushing breaks continuity
+    private static let handbackTravel: CGFloat = 45                             // px of attempted outward push needed
     private static let modKeys: [(CGEventFlags, Int)] = [
         (.maskShift, 56), (.maskControl, 59), (.maskAlternate, 58),
         (.maskCommand, 55), (.maskAlphaShift, 57), (.maskSecondaryFn, 63),
@@ -20,7 +28,7 @@ final class KVMReceiver {
 
     func stop() {
         releaseHeld()
-        active = false; armed = false; flags = []
+        active = false; armed = false; pushSince = nil; lastPush = nil; pushTravel = 0; flags = []
     }
 
     func handle(_ e: InputEvent) {
@@ -32,7 +40,7 @@ final class KVMReceiver {
             entrySide = side
             pos = Geometry.entryPoint(side: side, ratio: ratio, b)
             flags = []
-            active = true; armed = false
+            active = true; armed = false; enteredAt = .now(); pushSince = nil; lastPush = nil; pushTravel = 0
             Log.line("recv cross-in ax=\(Permissions.accessibility) pos=\(Int(pos.x)),\(Int(pos.y))")
             CGWarpMouseCursorPosition(inject())
             post(.mouseMoved, button: 0)
@@ -46,12 +54,21 @@ final class KVMReceiver {
             pos.y = min(b.maxY - 1, max(b.minY, pos.y + CGFloat(dy)))
             let dist = inside(pos, b)
             if dist > Self.armDistance { armed = true }
-            // hand back only on an active push into the exit edge, no button held, never on drift
-            if armed, buttons.isEmpty, pushingOut(dx, dy),
+            // hand back only on a sustained, deliberate push into the exit edge: not a graze, not right after entering
+            let now = DispatchTime.now()
+            if armed, now >= enteredAt + Self.enterCooldown, buttons.isEmpty, pushingOut(dx, dy),
                let ratio = Geometry.exitRatio(cursor: pos, side: entrySide, b) {
-                Log.line("recv handback ratio=\(String(format: "%.2f", ratio))")
-                let cb = onHandback; stop(); cb?(ratio)
-                return
+                if let last = lastPush, now > last + Self.pushGap { pushSince = nil; pushTravel = 0 }   // gap: restart the gesture
+                if pushSince == nil { pushSince = now }
+                lastPush = now
+                pushTravel += CGFloat(abs((entrySide == .left || entrySide == .right) ? dx : dy))
+                if now >= pushSince! + Self.handbackHold, pushTravel >= Self.handbackTravel {
+                    Log.line("recv handback ratio=\(String(format: "%.2f", ratio))")
+                    let cb = onHandback; stop(); cb?(ratio)
+                    return
+                }
+            } else if isInward(dx, dy) {
+                pushSince = nil; lastPush = nil; pushTravel = 0
             }
             post(dragType(), button: heldButton())
         case let .mouseDown(btn):
@@ -119,6 +136,15 @@ final class KVMReceiver {
         case .right:  return dx > 0
         case .top:    return dy < 0
         case .bottom: return dy > 0
+        }
+    }
+
+    private func isInward(_ dx: Int, _ dy: Int) -> Bool {
+        switch entrySide {
+        case .left:   return dx > 0
+        case .right:  return dx < 0
+        case .top:    return dy > 0
+        case .bottom: return dy < 0
         }
     }
 

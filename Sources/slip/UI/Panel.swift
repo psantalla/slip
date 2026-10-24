@@ -16,7 +16,8 @@ struct Panel: View {
         }
         .padding(T.m)
         .frame(width: T.panelWidth)
-        .font(T.mono(T.tBody))
+        .font(T.font(T.tBody))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: T.panelRadius))
     }
 
     private var codeReady: Bool {
@@ -33,7 +34,7 @@ struct Panel: View {
     private func roleSeg(_ title: String, _ r: Role) -> some View {
         let active = core.role == r
         return Button { core.setRole(r) } label: {
-            Text(title).font(T.mono(T.tBody)).foregroundStyle(.primary)
+            Text(title).font(T.font(T.tBody)).foregroundStyle(.primary)
         }
         .buttonStyle(.plain).focusEffectDisabled().hover(active: active)
         .disabled(core.isConnected)   // disconnect first to switch role
@@ -45,10 +46,13 @@ struct Panel: View {
         case .host:
             HStack(alignment: .firstTextBaseline) {
                 Text(core.code).tracking(1).textSelection(.enabled)
+                    .lineLimit(1).fixedSize()
                     .accessibilityLabel(core.code.map(String.init).joined(separator: " "))
                 Spacer()
                 link("New code") { core.regenerateCode() }
             }
+            .padding(.vertical, T.xs).padding(.horizontal, T.s)
+            .background(RoundedRectangle(cornerRadius: T.radius).fill(.primary.opacity(0.06)))
         case .join:
             VStack(alignment: .leading, spacing: T.xs) {
                 HStack(alignment: .firstTextBaseline) {
@@ -87,17 +91,17 @@ struct Panel: View {
             meta("Share")
             if core.role == .host {
                 toggle("Keyboard & mouse", core.kvmOn) { core.setKVM($0) }
-                if core.kvmOn { hostKVMDetail }
             }
             toggle("Clipboard", core.clipOn) { core.setClip($0) }
             toggle("Files", core.clipOn && core.filesOn) { core.setFiles($0) }
                 .disabled(!core.clipOn)   // files ride the clipboard
+            if core.role == .host, core.kvmOn { hostKVMDetail }   // layout last, after the 3 toggles
             if core.role == .join { receiverKVM }
         }
     }
 
     @ViewBuilder private var hostKVMDetail: some View {
-        meta("Screen layout")
+        meta("Screen layout").padding(.top, T.xs2)   // set off from the Share toggles
         ArrangeView(core: core)
         if !Permissions.accessibility {
             perm("Accessibility", false) { Permissions.requestAccessibility(); Permissions.openAccessibility() }
@@ -105,14 +109,11 @@ struct Panel: View {
         if !Permissions.inputMonitoring {
             perm("Input Monitoring", false) { Permissions.requestInputMonitoring(); Permissions.openInputMonitoring() }
         }
-        if core.kvmActive { meta("Controlling") }
     }
 
     @ViewBuilder private var receiverKVM: some View {
         if !Permissions.accessibility {
             perm("Accessibility", false) { Permissions.requestAccessibility(); Permissions.openAccessibility() }
-        } else if core.kvmActive {
-            meta("Controlled by \(core.peerName ?? "the host")")
         }
     }
 
@@ -120,7 +121,7 @@ struct Panel: View {
 
     private var footer: some View {
         HStack {
-            Text(Self.build).font(T.mono(T.tBody)).foregroundStyle(.secondary)
+            meta(Self.build, say: "Build \(Self.build)")
             Spacer()
             link("Quit") { NSApp.terminate(nil) }
         }
@@ -128,18 +129,19 @@ struct Panel: View {
 
     private func toggle(_ title: String, _ on: Bool, _ set: @escaping (Bool) -> Void) -> some View {
         Toggle(title, isOn: Binding(get: { on }, set: set))
-            .toggleStyle(.switch).controlSize(.mini).font(T.mono(T.tBody))
+            .toggleStyle(.switch).controlSize(.mini).font(T.font(T.tBody))
     }
 
     private func meta(_ text: String, say: String? = nil) -> some View {
-        Text(text).font(T.mono(T.tBody)).foregroundStyle(.secondary)
+        Text(text).font(T.font(T.tBody)).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityLabel(say ?? text)
     }
 
     private func link(_ title: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title).font(T.mono(T.tBody)).foregroundStyle(.primary)
+            Text(title).font(T.font(T.tBody)).foregroundStyle(.primary)
+                .lineLimit(1).fixedSize()
         }
         .buttonStyle(.plain).hover()
     }
@@ -191,7 +193,7 @@ private struct ArrangeView: View {
     }
 
     private func tile(_ label: String, strong: Bool, offset: CGSize) -> some View {
-        Text(label).font(T.mono(T.tBody)).foregroundStyle(.secondary)
+        Text(label).font(T.font(T.tBody)).foregroundStyle(.secondary)
             .lineLimit(1).truncationMode(.tail).padding(.horizontal, 3)
             .frame(width: tileW, height: tileH)
             .background(RoundedRectangle(cornerRadius: T.radius).fill(.primary.opacity(strong ? 0.16 : 0.08)))
