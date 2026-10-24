@@ -34,3 +34,18 @@ if ! codesign --verify --strict --verbose=2 "$APP"; then
 fi
 
 echo "built $APP"
+
+# optional: ./build.sh deploy  -> install to /Applications and ~/LFL safely.
+# rm before ditto: ditto never prunes stale files, a leftover .cstemp = "sealed resource missing".
+if [ "${1:-}" = "deploy" ]; then
+  osascript -e 'quit app "Slip"' 2>/dev/null || true
+  pkill -f "Slip.app/Contents/MacOS/slip" 2>/dev/null || true
+  sleep 1
+  for DST in /Applications/Slip.app "$HOME/LFL/Slip.app"; do
+    rm -rf "$DST"
+    ditto "$APP" "$DST"
+    codesign --verify --strict "$DST" || { echo "error: $DST signature invalid; aborting." >&2; exit 1; }
+    echo "deployed $DST"
+  done
+  open -a /Applications/Slip.app
+fi

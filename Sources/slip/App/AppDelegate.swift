@@ -48,6 +48,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func registerLoginItem() {
         guard #available(macOS 13.0, *) else { return }
         let svc = SMAppService.mainApp
+        // only the installed copy; dev builds clean any stray self-registration
+        guard Bundle.main.bundlePath.hasPrefix("/Applications/") else {
+            Log.line("dev build, login-item status=\(svc.status.rawValue), unregistering")
+            try? svc.unregister()
+            return
+        }
         guard svc.status != .enabled else { return }
         do { try svc.register() } catch { Log.line("login item register failed: \(error)") }
     }
