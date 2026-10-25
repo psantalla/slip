@@ -44,11 +44,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         registerLoginItem()
     }
 
-    // start at login, so it returns to the menu bar after a reboot
+    // relaunch into menu bar after reboot
     private func registerLoginItem() {
         guard #available(macOS 13.0, *) else { return }
         let svc = SMAppService.mainApp
-        // only the installed copy; dev builds clean any stray self-registration
+        // installed copy only; dev builds unregister strays
         guard Bundle.main.bundlePath.hasPrefix("/Applications/") else {
             Log.line("dev build, login-item status=\(svc.status.rawValue), unregistering")
             try? svc.unregister()
@@ -74,7 +74,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    // size to content + anchor under the status item; also on content change while open
     private func layoutWindow() {
         guard let button = statusItem.button, let bw = button.window else { return }
         window.setContentSize(hosting.fittingSize)
@@ -111,7 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let a = NSPoint(x: 5.1, y: 5.3), b = NSPoint(x: 9.5, y: 8.9)
             func vec(_ o: NSPoint, _ ang: CGFloat, _ l: CGFloat) -> NSPoint { NSPoint(x: o.x + cos(ang) * l, y: o.y + sin(ang) * l) }
             func oval(_ c: NSPoint) -> NSRect { NSRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r) }
-            // metaball bridge between the two drops (Vachhar connector)
+            // metaball bridge between the drops
             func neck() -> NSBezierPath {
                 let hp = CGFloat.pi / 2, pi = CGFloat.pi
                 let d = hypot(b.x - a.x, b.y - a.y), ab = atan2(b.y - a.y, b.x - a.x)

@@ -1,14 +1,12 @@
 import CoreGraphics
 
-// private CGS: lets CGDisplayHideCursor work from a background (accessory) app.
-// bound at load; if a future macOS drops them the app won't launch.
+// private CGS; missing symbol = won't launch
 @_silgen_name("_CGSDefaultConnection")
 private func _CGSDefaultConnection() -> Int32
 @_silgen_name("CGSSetConnectionProperty")
 private func CGSSetConnectionProperty(_ cid: Int32, _ owner: Int32, _ key: CFString, _ value: CFTypeRef) -> Int32
 
-// deskflow/input-leap recipe: re-assert the property before EVERY hide, keep the
-// hide count at exactly 1 via a bool, end each call with associate(true) so the hide registers.
+// re-assert each hide; bool keeps CG hide-count at 1
 enum CursorHide {
     private static var hidden = false
 
@@ -21,17 +19,27 @@ enum CursorHide {
     static func hide() -> CGError {
         guard !hidden else { return .success }
         allowInBackground()
-        let e = CGDisplayHideCursor(CGMainDisplayID())    // only covers the display the cursor is on; caller warps to main first (multi-monitor)
-        CGAssociateMouseAndMouseCursorPosition(1)         // kick so the hide actually registers
+        var err: CGError = .success
+        for id in activeDisplays() where CGDisplayHideCursor(id) != .success { err = .failure }   // every display; main-only misses a secondary
+        CGAssociateMouseAndMouseCursorPosition(1)
         hidden = true
-        return e
+        return err
     }
 
     static func show() {
         guard hidden else { return }
         allowInBackground()
-        CGDisplayShowCursor(CGMainDisplayID())
+        for id in activeDisplays() { CGDisplayShowCursor(id) }
         CGAssociateMouseAndMouseCursorPosition(1)
         hidden = false
+    }
+
+    private static func activeDisplays() -> [CGDirectDisplayID] {
+        var count: UInt32 = 0
+        CGGetActiveDisplayList(0, nil, &count)
+        guard count > 0 else { return [CGMainDisplayID()] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        CGGetActiveDisplayList(count, &ids, &count)
+        return ids
     }
 }

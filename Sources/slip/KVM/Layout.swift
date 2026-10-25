@@ -17,7 +17,7 @@ enum Geometry {
         return ids.map { CGDisplayBounds($0) }
     }
 
-    // union of all displays, so an injected cursor can roam every monitor on the receiver
+    // union lets injected cursor roam all receiver monitors
     static func union(_ rects: [CGRect]) -> CGRect {
         let r = rects.reduce(CGRect.null) { $0.union($1) }
         return r.isNull ? mainBounds() : r
@@ -25,7 +25,7 @@ enum Geometry {
 
     static func desktopBounds() -> CGRect { union(activeDisplayRects()) }
 
-    // keep a point on a real display; offset layouts leave dead zones in the union bbox
+    // offset layouts leave dead zones in union bbox
     static func clamp(_ p: CGPoint, to rects: [CGRect]) -> CGPoint {
         if rects.contains(where: { $0.contains(p) }) { return p }
         var best = p, bestD = CGFloat.greatestFiniteMagnitude
@@ -38,8 +38,7 @@ enum Geometry {
         return best
     }
 
-    static func crossingRatio(cursor: CGPoint, side: Side, _ b: CGRect) -> Double? {
-        let m = 1.0
+    static func crossingRatio(cursor: CGPoint, side: Side, margin m: Double = 1, _ b: CGRect) -> Double? {
         switch side {
         case .right:  return cursor.x >= b.maxX - m ? clamp((cursor.y - b.minY) / b.height) : nil
         case .left:   return cursor.x <= b.minX + m ? clamp((cursor.y - b.minY) / b.height) : nil

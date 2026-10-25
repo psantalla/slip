@@ -2,6 +2,12 @@
 
 Native Swift macOS menu-bar app, Apple Silicon only. Syncs clipboard, files and keyboard/mouse between two Macs over the LAN. No account, no cloud.
 
+## Archived
+
+Not maintained. A single cursor across two Macs leaves a residual cursor on an external display, a macOS limitation also hit by deskflow (#10225); not cleanly solvable in software. For two-Mac keyboard/mouse sharing, Beamer (https://beamerapp.co.uk) is recommended.
+
+An exploration project for native Swift app architecture on macOS. Personal-use, loosely reviewed; some parts are deliberate quick patches.
+
 ## Does
 
 - Clipboard text and images, both ways.

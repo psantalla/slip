@@ -14,7 +14,6 @@ enum LogLevel: Int, Comparable {
     static func < (a: Self, b: Self) -> Bool { a.rawValue < b.rawValue }
 }
 
-// Diagnostic log to <logDir>/slip-<mac>.log. Config via config.json (see Settings).
 // self-trimming: capped, keeps newest
 enum Log {
     private static let queue = DispatchQueue(label: "slip.log")
@@ -53,7 +52,7 @@ enum Log {
         }
     }
 
-    // keep the tail (newest); drop a leading partial line so it starts clean
+    // drop leading partial line
     private static func trimTail(_ url: URL) {
         guard let all = try? Data(contentsOf: url), all.count > keepBytes else { return }
         var tail = Data(all.suffix(keepBytes))

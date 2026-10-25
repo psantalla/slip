@@ -5,7 +5,7 @@ final class KVMReceiver {
     private(set) var active = false
 
     private let src = CGEventSource(stateID: .hidSystemState)
-    private var pos = CGPoint.zero        // logical, in the union space (for edge detection)
+    private var pos = CGPoint.zero        // logical, union space
     private var dispRects: [CGRect] = []
     private var flags: CGEventFlags = []
     private var buttons = Set<Int>()
@@ -18,7 +18,7 @@ final class KVMReceiver {
     private var pushTravel: CGFloat = 0
     private static let armDistance: CGFloat = 24
     private static let enterCooldown = DispatchTimeInterval.milliseconds(400)   // no handback right after crossing in
-    private static let handbackHold  = DispatchTimeInterval.milliseconds(250)   // sustain the push this long
+    private static let handbackHold  = DispatchTimeInterval.milliseconds(150)   // sustain the push this long
     private static let pushGap       = DispatchTimeInterval.milliseconds(90)    // a gap in pushing breaks continuity
     private static let handbackTravel: CGFloat = 45                             // px of attempted outward push needed
     private static let modKeys: [(CGEventFlags, Int)] = [
@@ -42,10 +42,12 @@ final class KVMReceiver {
             flags = []
             active = true; armed = false; enteredAt = .now(); pushSince = nil; lastPush = nil; pushTravel = 0
             Log.line("recv cross-in ax=\(Permissions.accessibility) pos=\(Int(pos.x)),\(Int(pos.y))")
+            CursorHide.show()
             CGWarpMouseCursorPosition(inject())
             post(.mouseMoved, button: 0)
         case .leave, .handback:
             stop()
+            CursorHide.hide()   // control left; drop the join's own cursor
         case let .move(dx, dy):
             guard active else { return }
             dispRects = Geometry.activeDisplayRects()
@@ -54,7 +56,7 @@ final class KVMReceiver {
             pos.y = min(b.maxY - 1, max(b.minY, pos.y + CGFloat(dy)))
             let dist = inside(pos, b)
             if dist > Self.armDistance { armed = true }
-            // hand back only on a sustained, deliberate push into the exit edge: not a graze, not right after entering
+            // sustained deliberate push only, not a graze
             let now = DispatchTime.now()
             if armed, now >= enteredAt + Self.enterCooldown, buttons.isEmpty, pushingOut(dx, dy),
                let ratio = Geometry.exitRatio(cursor: pos, side: entrySide, b) {
@@ -64,7 +66,7 @@ final class KVMReceiver {
                 pushTravel += CGFloat(abs((entrySide == .left || entrySide == .right) ? dx : dy))
                 if now >= pushSince! + Self.handbackHold, pushTravel >= Self.handbackTravel {
                     Log.line("recv handback ratio=\(String(format: "%.2f", ratio))")
-                    let cb = onHandback; stop(); cb?(ratio)
+                    let cb = onHandback; stop(); CursorHide.hide(); cb?(ratio)
                     return
                 }
             } else if isInward(dx, dy) {
@@ -90,10 +92,12 @@ final class KVMReceiver {
             keysDown.remove(code); key(code, down: false)
         case let .flags(f):
             flags = CGEventFlags(rawValue: f)
+        case .active:
+            break   // handled in KVM.receive; never reaches here
         }
     }
 
-    // keep the injected cursor on a real display; the union bbox can have dead zones
+    // union bbox has dead zones; clamp to a real display
     private func inject() -> CGPoint { Geometry.clamp(pos, to: dispRects) }
 
     private func post(_ type: CGEventType, button: Int) {

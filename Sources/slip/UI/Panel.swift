@@ -101,7 +101,7 @@ struct Panel: View {
     }
 
     @ViewBuilder private var hostKVMDetail: some View {
-        meta("Screen layout").padding(.top, T.xs2)   // set off from the Share toggles
+        meta("Screen layout").padding(.top, T.xs2)
         ArrangeView(core: core)
         if !Permissions.accessibility {
             perm("Accessibility", false) { Permissions.requestAccessibility(); Permissions.openAccessibility() }
@@ -223,7 +223,7 @@ private struct ArrangeView: View {
     }
 }
 
-// selection/interactivity by opacity, no box/halo: dim at rest, full when active or hovered
+// selection by opacity, no box/halo
 private struct HoverOpacity: ViewModifier {
     let active: Bool
     @State private var on = false

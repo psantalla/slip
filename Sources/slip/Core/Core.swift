@@ -81,7 +81,7 @@ final class Core: ObservableObject {
     func disconnect() {
         status = .disconnected
         kvm.setConnected(false)
-        apply(role)   // tear down the link, keep listening/browsing in the current role
+        apply(role)   // keep listening in current role
     }
 
     func setClip(_ on: Bool) { clipOn = on; Settings.clipOn = on }
@@ -100,7 +100,7 @@ final class Core: ObservableObject {
     func connect() {
         guard Wire.normalizeCode(joinCode).count >= 8 else { return }
         Settings.joinCode = joinCode
-        status = .connecting   // instant feedback, link refines to connected/failed
+        status = .connecting   // instant feedback
         link.setJoinCode(joinCode)
         link.connect()
     }

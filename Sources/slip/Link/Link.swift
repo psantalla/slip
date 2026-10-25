@@ -15,7 +15,7 @@ struct Peer {
     let endpoint: NWEndpoint
 }
 
-// @unchecked Sendable: all mutable state is confined to the serial queue `q`.
+// @unchecked Sendable: mutable state confined to q
 final class Link: @unchecked Sendable {
     static let serviceType = "_slip._tcp"
     private static let pingEvery = 4.0
@@ -139,7 +139,7 @@ final class Link: @unchecked Sendable {
         guard dialingConn == nil else { return }
         dialingPeerId = peer.id
         lastDialAt = .now()
-        connectDeadline?.cancel(); connectDeadline = nil   // a dial is now in flight
+        connectDeadline?.cancel(); connectDeadline = nil   // dial in flight
         emit(.connecting)
         begin(NWConnection(to: peer.endpoint, using: params(for: joinCode)), dial: true)
     }
@@ -149,7 +149,7 @@ final class Link: @unchecked Sendable {
         q.asyncAfter(deadline: .now() + Link.reconnectDelay) { [weak self] in self?.tryDial() }
     }
 
-    // no host discovered in time -> surface a failure instead of spinning on "connecting"
+    // no host in time: fail instead of spinning on "connecting"
     private func armConnectDeadline() {
         connectDeadline?.cancel()
         let gen = epoch
@@ -201,7 +201,7 @@ final class Link: @unchecked Sendable {
         c.start(queue: q)
     }
 
-    // first authenticated wins; reject late/duplicate, ignore a repeat .ready for the same conn
+    // first authenticated wins; reject duplicates and repeat .ready
     private func promote(_ c: NWConnection) {
         guard conn == nil else { if conn !== c { c.cancel() }; return }
         pending.forEach { if $0 !== c { $0.cancel() } }; pending.removeAll()
@@ -253,9 +253,9 @@ final class Link: @unchecked Sendable {
         if hadLink { scheduleReconnect(); return }   // real link dropped: keep the same peer
         if let id { attempts[id, default: 0] += 1 }
         if lastPeers.contains(where: { (attempts[$0.id] ?? 0) < Link.maxAttempts }) {
-            scheduleDial()        // retry this peer or try another
+            scheduleDial()
         } else {
-            emit(.failed)         // all peers exhausted; a newly discovered one still retries
+            emit(.failed)         // exhausted; a new peer still retries
         }
     }
 

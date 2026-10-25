@@ -78,9 +78,14 @@ enum Settings {
         if let p = config()["logDir"] as? String, !p.isEmpty {
             return URL(fileURLWithPath: (p as NSString).expandingTildeInPath, isDirectory: true)
         }
-        let lfl = home.appendingPathComponent("LFL", isDirectory: true)   // sync folder if present, else standard location
+        let lfl = home.appendingPathComponent("LFL", isDirectory: true)
         return FileManager.default.fileExists(atPath: lfl.path) ? lfl : home.appendingPathComponent("Library/Logs/Slip", isDirectory: true)
     }
+
+    // KVM cross push gate, config.json: crossTravelPx (px of sustained push), crossHoldMs (sustain time), crossBandPx (edge band)
+    static var crossTravelPx: Int { max(0, config()["crossTravelPx"] as? Int ?? 40) }
+    static var crossHoldMs: Int { max(0, config()["crossHoldMs"] as? Int ?? 120) }
+    static var crossBandPx: Int { max(1, config()["crossBandPx"] as? Int ?? 3) }
 
     static func newCode() -> String {
         let alphabet = Array("0123456789ABCDEFGHJKMNPQRSTVWXYZ")

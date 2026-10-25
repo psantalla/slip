@@ -40,7 +40,7 @@ enum Wire {
     static func readBE32(_ d: Data) -> UInt32 { d.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).bigEndian } }
     static func readBE64(_ d: Data) -> UInt64 { d.withUnsafeBytes { $0.loadUnaligned(as: UInt64.self).bigEndian } }
 
-    // canonical code: uppercase, digits+letters only (drops dashes, spaces, case)
+    // canonical: alnum, uppercased
     static func normalizeCode(_ s: String) -> String { s.uppercased().filter { $0.isLetter || $0.isNumber } }
 
     static func deriveKey(_ code: String) -> Data {

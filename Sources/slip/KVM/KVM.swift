@@ -3,6 +3,7 @@ import Foundation
 final class KVM {
     private let sendEvent: (InputEvent) -> Void
     private let receiver = KVMReceiver()
+    private let localGuard = LocalCursorGuard()
     private var controller: KVMController?
     private var role: Role = .host
     private var side: Side = Settings.otherSide
@@ -11,9 +12,20 @@ final class KVM {
     private var connected = false
     private var watchdog: Timer?
 
+    private var lastClaim = DispatchTime.now()
+
     init(send: @escaping (InputEvent) -> Void) {
         sendEvent = send
         receiver.onHandback = { [weak self] r in self?.sendEvent(.handback(ratio: r)) }
+        localGuard.onLocalInput = { [weak self] in self?.claimActive() }
+    }
+
+    // local input = this Mac active
+    private func claimActive() {
+        guard connected, enabled else { return }
+        CursorHide.show()
+        let now = DispatchTime.now()
+        if now > lastClaim + .milliseconds(400) { lastClaim = now; sendEvent(.active) }   // debounce
     }
 
     func setConnected(_ c: Bool) { connected = c; reconcile() }
@@ -32,6 +44,10 @@ final class KVM {
     }
 
     func receive(_ e: InputEvent) {
+        if case .active = e {
+            if enabled, localGuard.active || controller != nil { CursorHide.hide() }   // only hide if we have a way to re-show
+            return
+        }
         switch role {
         case .join:
             receiver.handle(e)
@@ -41,10 +57,15 @@ final class KVM {
     }
 
     private func reconcile() {
-        if role != .join || !connected {
+        if role == .join, connected, enabled {
+            if !Permissions.accessibility { Permissions.requestAccessibility() }   // receiver injects, needs it
+            localGuard.start()
+            if localGuard.active { CursorHide.hide() }   // hide until the host crosses in or local input re-shows
+        } else {
             receiver.stop()
+            localGuard.stop()
+            if role == .join { CursorHide.show() }
         }
-        if role == .join, connected, !Permissions.accessibility { Permissions.requestAccessibility() }   // receiver injects, needs it
 
         let wantController = role == .host && enabled && connected
         if wantController, controller == nil {
@@ -54,6 +75,7 @@ final class KVM {
             }
             let c = KVMController(side: side, align: align)
             c.onEvent = { [weak self] e in self?.sendEvent(e) }
+            c.onLocalInput = { [weak self] in self?.claimActive() }
             if c.start() { controller = c; startWatchdog(); Log.line("kvm host: controller started") }
             else { Log.line("kvm host: tap create FAILED") }
         } else if !wantController, controller != nil {

@@ -11,8 +11,9 @@ enum InputEvent {
     case keyDown(code: Int)
     case keyUp(code: Int)
     case flags(UInt64)
+    case active                              // active screen; receiver hides cursor
 
-    private enum Tag: UInt8 { case enter = 1, leave, handback, move, mDown, mUp, scroll, kDown, kUp, flags }
+    private enum Tag: UInt8 { case enter = 1, leave, handback, move, mDown, mUp, scroll, kDown, kUp, flags, active }
 
     func encode() -> Data {
         var d = Data()
@@ -37,6 +38,8 @@ enum InputEvent {
             d.append(Tag.kUp.rawValue); d.appendU16(c)
         case let .flags(f):
             d.append(Tag.flags.rawValue); d.appendU64(f)
+        case .active:
+            d.append(Tag.active.rawValue)
         }
         return d
     }
@@ -69,6 +72,8 @@ enum InputEvent {
             guard let c = r.u16() else { return nil }; self = .keyUp(code: Int(c))
         case .flags:
             guard let f = r.u64() else { return nil }; self = .flags(f)
+        case .active:
+            self = .active
         }
     }
 }
